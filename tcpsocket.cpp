@@ -144,6 +144,7 @@ void tcpSocket::sendFile()
 
         TxLen = FormCMD(SOCKET_CMD_FILE_EOF,(UINT8*)data,0,TxBuffer);
         write((const char*)TxBuffer,TxLen);
+        qDebug()<<"SOCKET_CMD_FILE_EOF";
 
     }
 }

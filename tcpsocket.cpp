@@ -157,9 +157,12 @@ void tcpSocket::on_socket_readyRead()
     len +=lastlen;
     int getlen = 0;
 
-    qDebug()<<"TCPdata"<<len;
+
+
+
 
     QByteArray data = readAll();
+    qDebug()<<"TCPdata->"<<data.toHex();
     data.insert(0,lastBuf);
     char* dat = data.data();
 

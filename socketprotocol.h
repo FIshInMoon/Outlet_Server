@@ -65,6 +65,38 @@ server->client
 
 **********************************************/
 
+#define STLINE	((UITN16)(__LINE__))
+
+#define	utBeginVarTask			\
+    static UITN16 st=0; 		\
+                                \
+    switch(st)					\
+    {							\
+        case 0: 				\
+            memset((UINT8 *)(&utv),0,sizeof(utv));
+
+#define	utBeginTask				\
+    static UITN16 st=0; 		\
+                                \
+    switch(st)					\
+    {							\
+        case 0:
+
+#define utWait(proc)			\
+            st = STLINE;		\
+                                \
+        case STLINE: 			\
+            if(!(proc)) 		\
+                return false;
+
+#define utEndTask				\
+            st = 0;				\
+            return true;		\
+    }							\
+    return false;
+
+
+
 #ifndef SOCKETPROTOCOL_H
 #define SOCKETPROTOCOL_H
 #include "windows.h"
@@ -86,6 +118,7 @@ enum
     //client -> server
     SOCKET_CMD_IMHERE,          //客户端定时访问包,即问服务器有没有事件要处理，诺返回的SOCKET_CMD_EVENT_NUM包有数据，则请保持连接
     SOCKET_CMD_INFO,
+    SOCKET_CMD_GET,
 
 };
 

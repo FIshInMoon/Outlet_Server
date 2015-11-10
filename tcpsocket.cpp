@@ -99,11 +99,28 @@ void tcpSocket::sendEventNum(UINT16 eventNum)
 extern UINT32 AllEventCount;
 
 extern QStringList filenamelist;
+enum{
+
+    FILENAME,
+    FILESIZE,
+    FILEDATA,
+    FILEEOF,
+};
+int nowfileno = -1;
+int sta = FILENAME;
+QFile file;
+QDataStream in;
+int allfilesize;
+int nowfilesize;
 void tcpSocket::sendFile()
 {
     UINT8 data[PACK_MAX_LEN];
     char * data2;
     UINT32 datalen;
+
+
+
+#if 0
     for(int i=0; i<AllEventCount;i++)
     {
         QFile file(filenamelist.at(i));
@@ -147,6 +164,92 @@ void tcpSocket::sendFile()
         qDebug()<<"SOCKET_CMD_FILE_EOF";
 
     }
+#else
+
+    int l=0;
+    QByteArray ba;
+    UINT32 TxLen;
+
+    if(nowfileno>=AllEventCount||AllEventCount==0||nowfileno<0)
+    {
+        qDebug()<<"文件发送完了,或者没有文件";
+        return;
+    }
+
+    switch (sta)
+    {
+    case FILENAME:
+        qDebug()<<"FILENAME";
+        file.setFileName(filenamelist.at(nowfileno));
+        if(!file.open(QIODevice::ReadOnly))
+        {
+         qDebug()<<"打开文件错误";
+         return ;
+        }
+
+        ba =  filenamelist.at(nowfileno).mid(filenamelist.at(nowfileno).lastIndexOf("/")+1).toLatin1();
+        data2 = ba.data();
+        datalen = filenamelist.at(nowfileno).length()-(filenamelist.at(nowfileno).lastIndexOf("/")+1);
+        TxLen = FormCMD(SOCKET_CMD_FILENAME,(UINT8*)data2,datalen,TxBuffer);
+        write((const char*)TxBuffer,TxLen);
+        sta = FILESIZE;
+        break;
+    case FILESIZE:
+        qDebug()<<"FILESIZE";
+
+        data[0] = file.size()&0xff;
+        data[1] = (file.size()>>8)&0xff;
+        data[2] = (file.size()>>16)&0xff;
+        data[3] = (file.size()>>24)&0xff;
+        TxLen = FormCMD(SOCKET_CMD_FILE_SIZE,(UINT8*)data,4,TxBuffer);
+        write((const char*)TxBuffer,TxLen);
+
+        in.setDevice(&file);
+        allfilesize = file.size();
+        nowfilesize = 0;
+
+        sta = FILEDATA;
+        break;
+    case FILEDATA:
+        qDebug()<<"FILEDATA";
+
+        if(allfilesize-nowfilesize>1000)
+        {
+            for(l=0;l<1000;l++)
+            {
+                in>>data[l];
+            }
+            nowfilesize+=1000;
+            TxLen = FormCMD(SOCKET_CMD_FILE_DATA,(UINT8*)data,l+1,TxBuffer);
+            write((const char*)TxBuffer,TxLen);
+        }
+        else
+        {
+            for(l=0;l<allfilesize-nowfilesize;l++)
+            {
+                in>>data[l];
+            }
+            nowfilesize+=allfilesize-nowfilesize;
+            TxLen = FormCMD(SOCKET_CMD_FILE_DATA,(UINT8*)data,l+1,TxBuffer);
+            write((const char*)TxBuffer,TxLen);
+            sta = FILEEOF;
+        }
+        break;
+    case FILEEOF:
+        qDebug()<<"FILEEOF";
+
+        file.close();
+        nowfileno++;
+
+        TxLen = FormCMD(SOCKET_CMD_FILE_EOF,(UINT8*)data,0,TxBuffer);
+        write((const char*)TxBuffer,TxLen);
+
+        sta = FILENAME;
+
+        break;
+    }
+
+#endif
 }
 
 QByteArray lastBuf;//分包的剩余留在外面了，下次做到socketprotpcol里
@@ -192,6 +295,10 @@ void tcpSocket::on_socket_readyRead()
                 break;
             case SOCKET_CMD_IMHERE:
                 sendEventNum(AllEventCount);
+                if(AllEventCount>0)
+                    nowfileno = 0;//初始化已发文件数目
+                break;
+            case SOCKET_CMD_GET:
                 sendFile();
                 break;
             }
